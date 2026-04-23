@@ -3,7 +3,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const mongoose = require('mongoose');
 
 // Adicione junto com suas outras importações
 const mongoose = require('mongoose');
