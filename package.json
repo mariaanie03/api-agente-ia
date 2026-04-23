@@ -1,21 +1,17 @@
 {
-  "name": "api-agente-ia",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "meu-chat-ia",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "mongoose": "^9.5.0"
+    "@google/generative-ai": "^0.1.0",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
   }
 }
