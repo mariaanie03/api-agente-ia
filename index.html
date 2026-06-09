@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Meu Chatbot na Nuvem</title>
     
-    <!-- 1. Adicionando a biblioteca Marked.js -->
+    <!-- Biblioteca para traduzir Markdown (negrito, códigos, etc) -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <style>
@@ -12,11 +12,11 @@
         .chat-container { background: white; width: 450px; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         .historico { height: 350px; overflow-y: auto; background: #eef2f3; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
         
-        /* Estilos básicos para o Markdown */
         .mensagem { margin-bottom: 15px; padding: 10px; border-radius: 5px; line-height: 1.5; }
         .user { background: #007bff; color: white; text-align: right; }
         .bot { background: #ddd; color: black; text-align: left; }
-        .bot code { background: #333; color: #fff; padding: 2px 5px; border-radius: 3px; }
+        /* Estilo para blocos de código dentro do Markdown */
+        .bot code { background: #333; color: #fff; padding: 2px 5px; border-radius: 3px; font-family: monospace; }
         
         input { width: 70%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
         .btn-enviar { background: #28a745; width: 25%; padding: 10px; border: none; border-radius: 5px; cursor: pointer; color: white; }
@@ -31,11 +31,11 @@
             <input type="text" id="pergunta" placeholder="Digite sua pergunta...">
             <button class="btn-enviar" onclick="enviarMensagem()">Enviar</button>
         </div>
-        <!-- 2. Botão de Limpar -->
         <button class="btn-limpar" onclick="limparChat()">🗑️ Limpar Conversa</button>
     </div>
 
     <script>
+        // LEMBRE-SE: Coloque aqui o link do seu back-end no Render
         const URL_BASE = "https://api-agente-ia-6.onrender.com/api/chat";
 
         async function enviarMensagem() {
@@ -45,8 +45,11 @@
 
             if(!texto) return;
 
+            // Mostra o usuário
             historico.innerHTML += `<div class="mensagem user">${texto}</div>`;
             input.value = "";
+            
+            // Mostra o "Pensando..."
             historico.innerHTML += `<div class="mensagem bot" id="loading">Pensando...</div>`;
             historico.scrollTop = historico.scrollHeight;
 
@@ -58,20 +61,34 @@
                 });
 
                 const dados = await resposta.json();
-                document.getElementById("loading").remove();
+                
+                // Remove o "Pensando..."
+                const loadingElement = document.getElementById("loading");
+                if(loadingElement) loadingElement.remove();
 
-                // 3. Upgrade Visual: Traduzindo Markdown para HTML
-                const respostaFormatada = marked.parse(dados.resposta);
-                historico.innerHTML += `<div class="mensagem bot">${respostaFormatada}</div>`;
+                // Formata com Markdown e exibe
+                if(dados.resposta) {
+                    const respostaFormatada = marked.parse(dados.resposta);
+                    historico.innerHTML += `<div class="mensagem bot">${respostaFormatada}</div>`;
+                } else {
+                    throw new Error("Resposta vazia");
+                }
                 
                 historico.scrollTop = historico.scrollHeight;
             } catch (erro) {
-                document.getElementById("loading").innerHTML = "Erro de conexão ❌";
+                console.error("Erro:", erro);
+                const loadingElement = document.getElementById("loading");
+                if(loadingElement) {
+                    loadingElement.innerHTML = "Erro ao conectar com o servidor ❌";
+                    loadingElement.id = ""; // Remove o ID para não confundir a próxima busca
+                } else {
+                    historico.innerHTML += `<div class="mensagem bot">Erro de conexão com o servidor ❌</div>`;
+                }
             }
         }
 
         async function limparChat() {
-            if (!confirm("Deseja apagar todo o histórico?")) return;
+            if (!confirm("Tem certeza que deseja apagar todo o histórico?")) return;
 
             try {
                 const resposta = await fetch(`${URL_BASE}/limpar`, {
@@ -80,10 +97,11 @@
                 
                 if (resposta.ok) {
                     document.getElementById("historico").innerHTML = ""; 
-                    alert("Histórico limpo!");
+                    alert("Chat reiniciado com sucesso!");
                 }
             } catch (erro) {
                 console.error("Erro ao limpar:", erro);
+                alert("Falha ao limpar o servidor.");
             }
         }
     </script>
