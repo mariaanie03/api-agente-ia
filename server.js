@@ -8,26 +8,36 @@ const chatRoutes = require('./routes/chatRoutes');
 // 2. Inicialização do Express
 const app = express();
 
-// 3. Middlewares (A ordem importa!)
-// O CORS deve ser configurado antes das rotas para liberar o acesso ao front-end
+// 3. Middlewares
 app.use(cors({
-    origin: '*', // Permite conexões de qualquer origem (útil para testes)
+    origin: '*', 
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
+app.use(express.json());
 
-app.use(express.json()); // Permite que o servidor entenda JSON
+// 4. Conexão com o Banco de Dados (COM LOG DE DIAGNÓSTICO)
+console.log("🔍 Diagnóstico: Iniciando tentativa de conexão com o banco...");
 
-// 4. Conexão com o Banco de Dados
+if (!process.env.MONGO_URI) {
+    console.error("❌ ERRO: A variável MONGO_URI não está definida no ambiente!");
+} else {
+    console.log("✅ MONGO_URI encontrada no ambiente.");
+}
+
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('📦 Conectado ao MongoDB Atlas!'))
-  .catch((err) => console.error('❌ Erro no banco:', err));
+  .then(() => {
+      console.log('📦 Conectado ao MongoDB Atlas com sucesso!');
+  })
+  .catch((err) => {
+      console.error('❌ ERRO CRÍTICO NA CONEXÃO COM O BANCO DE DADOS:');
+      console.error(err.message);
+  });
 
 // 5. Definição das Rotas
-// Agora o server.js fica limpo, apenas apontando para o arquivo de rotas
 app.use('/api/chat', chatRoutes);
 
-// Rota de teste simples para saber se o servidor está no ar
+// Rota de teste
 app.get('/', (req, res) => {
     res.send('Servidor do Chatbot está rodando! 🚀');
 });
