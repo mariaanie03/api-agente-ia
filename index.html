@@ -21,89 +21,194 @@
         input { width: 70%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
         .btn-enviar { background: #28a745; width: 25%; padding: 10px; border: none; border-radius: 5px; cursor: pointer; color: white; }
         .btn-limpar { background: #dc3545; width: 100%; margin-top: 10px; padding: 10px; border: none; border-radius: 5px; cursor: pointer; color: white; }
+
+        /* Estilo para a Tabela de Ranking */
+.ranking-container {
+    margin-top: 20px;
+    background: #fff;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    display: none; /* Começa escondido */
+}
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background-color: #f8f9fa; }
+.btn-ranking { background: #6f42c1; color: white; width: 100%; margin-top: 10px; padding: 10px; border: none; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="chat-container">
         <h2>🤖 Assistente IA</h2>
+            <!-- NOVO: Campo de Nickname -->
+    <div style="margin-bottom: 10px;">
+        <input type="text" id="nickname" placeholder="Seu Nickname (Apelido)..." style="width: 95%;">
+    </div>
         <div class="historico" id="historico"></div>
         <div>
             <input type="text" id="pergunta" placeholder="Digite sua pergunta...">
             <button class="btn-enviar" onclick="enviarMensagem()">Enviar</button>
         </div>
         <button class="btn-limpar" onclick="limparChat()">🗑️ Limpar Conversa</button>
+
+        <button class="btn-ranking" onclick="mostrarRanking()">🏆 Ver Ranking (Hall da Fama)</button>
+
+<div id="ranking-box" class="ranking-container">
+    <h3>🏆 Top 10 Guardiões</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Pos.</th>
+                <th>Nickname</th>
+                <th>XP</th>
+            </tr>
+        </thead>
+        <tbody id="tabela-ranking">
+            <!-- Os dados entrarão aqui via JS -->
+        </tbody>
+    </table>
+    <button onclick="document.getElementById('ranking-box').style.display='none'" style="margin-top:10px; cursor:pointer;">Fechar</button>
+</div>
     </div>
 
     <script>
-        // LEMBRE-SE: Coloque aqui o link do seu back-end no Render
-        const URL_BASE = "https://api-agente-ia-6.onrender.com/api/chat";
+    // URL do seu Back-end no Render (Certifique-se de que está correta)
+    const URL_BASE = "https://api-agente-ia-6.onrender.com/api/chat";
 
-        async function enviarMensagem() {
-            const input = document.getElementById("pergunta");
-            const historico = document.getElementById("historico");
-            const texto = input.value;
+    /**
+     * FUNÇÃO: ENVIAR MENSAGEM
+     * Captura Nickname e Pergunta, envia para o servidor e exibe a resposta da IA.
+     */
+    async function enviarMensagem() {
+        const input = document.getElementById("pergunta");
+        const nickInput = document.getElementById("nickname");
+        const historico = document.getElementById("historico");
+        
+        const texto = input.value;
+        const nickname = nickInput.value.trim();
 
-            if(!texto) return;
+        // Validações básicas
+        if (!nickname) {
+            alert("⚠️ Digite um Nickname para ganhar pontos!");
+            nickInput.focus();
+            return;
+        }
+        if (!texto) return;
 
-            // Mostra o usuário
-            historico.innerHTML += `<div class="mensagem user">${texto}</div>`;
-            input.value = "";
+        // Exibe a mensagem do usuário no chat
+        historico.innerHTML += `
+            <div class="mensagem user">
+                <strong>${nickname}:</strong> ${texto}
+            </div>`;
+        
+        input.value = ""; // Limpa campo de texto
+        
+        // Exibe o estado de "Pensando..."
+        historico.innerHTML += `<div class="mensagem bot" id="loading">🤖 O Guardião está processando...</div>`;
+        historico.scrollTop = historico.scrollHeight;
+
+        try {
+            // Envia Nickname e Pergunta no corpo do JSON
+            const resposta = await fetch(URL_BASE, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    pergunta: texto, 
+                    nickname: nickname 
+                })
+            });
+
+            const dados = await resposta.json();
             
-            // Mostra o "Pensando..."
-            historico.innerHTML += `<div class="mensagem bot" id="loading">Pensando...</div>`;
+            // Remove o indicador de carregamento
+            const loadingElement = document.getElementById("loading");
+            if(loadingElement) loadingElement.remove();
+
+            if (dados.resposta) {
+                // Transforma Markdown em HTML e exibe
+                const respostaFormatada = marked.parse(dados.resposta);
+                historico.innerHTML += `<div class="mensagem bot">${respostaFormatada}</div>`;
+            } else {
+                throw new Error("Resposta inválida");
+            }
+            
             historico.scrollTop = historico.scrollHeight;
 
-            try {
-                const resposta = await fetch(URL_BASE, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ pergunta: texto })
-                });
-
-                const dados = await resposta.json();
-                
-                // Remove o "Pensando..."
-                const loadingElement = document.getElementById("loading");
-                if(loadingElement) loadingElement.remove();
-
-                // Formata com Markdown e exibe
-                if(dados.resposta) {
-                    const respostaFormatada = marked.parse(dados.resposta);
-                    historico.innerHTML += `<div class="mensagem bot">${respostaFormatada}</div>`;
-                } else {
-                    throw new Error("Resposta vazia");
-                }
-                
-                historico.scrollTop = historico.scrollHeight;
-            } catch (erro) {
-                console.error("Erro:", erro);
-                const loadingElement = document.getElementById("loading");
-                if(loadingElement) {
-                    loadingElement.innerHTML = "Erro ao conectar com o servidor ❌";
-                    loadingElement.id = ""; // Remove o ID para não confundir a próxima busca
-                } else {
-                    historico.innerHTML += `<div class="mensagem bot">Erro de conexão com o servidor ❌</div>`;
-                }
+        } catch (erro) {
+            console.error("Erro:", erro);
+            const loadingElement = document.getElementById("loading");
+            if(loadingElement) {
+                loadingElement.innerHTML = "Erro ao conectar com o servidor ❌";
+            } else {
+                historico.innerHTML += `<div class="mensagem bot">Erro de conexão ❌</div>`;
             }
         }
+    }
 
-        async function limparChat() {
-            if (!confirm("Tem certeza que deseja apagar todo o histórico?")) return;
+    /**
+     * FUNÇÃO: MOSTRAR RANKING
+     * Busca os Top 10 jogadores no banco e preenche a tabela.
+     */
+    async function mostrarRanking() {
+        const box = document.getElementById("ranking-box");
+        const tabela = document.getElementById("tabela-ranking");
+        
+        try {
+            // Requisição para a nova rota de ranking
+            const resposta = await fetch(`${URL_BASE}/ranking`);
+            const jogadores = await resposta.json();
+            
+            tabela.innerHTML = ""; // Limpa a tabela
+            
+            jogadores.forEach((jogador, index) => {
+                // Lógica das medalhas para os 3 primeiros
+                let posicao;
+                if(index === 0) posicao = "🥇";
+                else if(index === 1) posicao = "🥈";
+                else if(index === 2) posicao = "🥉";
+                else posicao = `${index + 1}º`;
 
-            try {
-                const resposta = await fetch(`${URL_BASE}/limpar`, {
-                    method: "DELETE" 
-                });
-                
-                if (resposta.ok) {
-                    document.getElementById("historico").innerHTML = ""; 
-                    alert("Chat reiniciado com sucesso!");
-                }
-            } catch (erro) {
-                console.error("Erro ao limpar:", erro);
-                alert("Falha ao limpar o servidor.");
-            }
+                tabela.innerHTML += `
+                    <tr>
+                        <td>${posicao}</td>
+                        <td>${jogador.nome}</td>
+                        <td>${jogador.xp}</td>
+                    </tr>
+                `;
+            });
+            
+            box.style.display = "block"; // Mostra o container do ranking
+        } catch (erro) {
+            console.error("Erro ao carregar ranking:", erro);
+            alert("Não foi possível carregar o Hall da Fama.");
         }
-    </script>
+    }
+
+    /**
+     * FUNÇÃO: LIMPAR CHAT
+     * Apaga as mensagens do banco de dados e limpa a tela.
+     */
+    async function limparChat() {
+        if (!confirm("Deseja apagar todo o histórico de mensagens?")) return;
+
+        try {
+            const resposta = await fetch(`${URL_BASE}/limpar`, {
+                method: "DELETE" 
+            });
+            
+            if (resposta.ok) {
+                document.getElementById("historico").innerHTML = ""; 
+                alert("Chat reiniciado!");
+            }
+        } catch (erro) {
+            alert("Falha ao limpar histórico.");
+        }
+    }
+
+    // Permite enviar a mensagem apertando a tecla ENTER
+    document.getElementById("pergunta").addEventListener("keypress", function(e) {
+        if (e.key === "Enter") enviarMensagem();
+    });
+</script>
 </body>
 </html>
