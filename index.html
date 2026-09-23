@@ -8,86 +8,162 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .chat-container { background: white; width: 450px; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .historico { height: 350px; overflow-y: auto; background: #eef2f3; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+        body { 
+            font-family: Arial, sans-serif; 
+            background-color: #f4f4f9; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        .chat-container { 
+            background: white; 
+            width: 450px; 
+            padding: 20px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+        }
+        .historico { 
+            height: 350px; 
+            overflow-y: auto; 
+            background: #eef2f3; 
+            padding: 10px; 
+            border-radius: 5px; 
+            margin-bottom: 10px; 
+        }
         
         .mensagem { margin-bottom: 15px; padding: 10px; border-radius: 5px; line-height: 1.5; }
         .user { background: #007bff; color: white; text-align: right; }
         .bot { background: #ddd; color: black; text-align: left; }
+        
         /* Estilo para blocos de código dentro do Markdown */
         .bot code { background: #333; color: #fff; padding: 2px 5px; border-radius: 3px; font-family: monospace; }
         
-        input { width: 70%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
-        .btn-enviar { background: #28a745; width: 25%; padding: 10px; border: none; border-radius: 5px; cursor: pointer; color: white; }
+        .input-group { display: flex; gap: 5px; margin-bottom: 10px; }
+        input[type="text"] { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        .btn-enviar { background: #28a745; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; color: white; font-weight: bold; }
+        
         .btn-limpar { background: #dc3545; width: 100%; margin-top: 10px; padding: 10px; border: none; border-radius: 5px; cursor: pointer; color: white; }
+        .btn-ranking { background: #6f42c1; color: white; width: 100%; margin-top: 10px; padding: 10px; border: none; border-radius: 5px; cursor: pointer; }
+
+        /* Estilos do Modo Documento */
+        .doc-container { 
+            background: #fff3cd; 
+            padding: 10px; 
+            border-radius: 5px; 
+            margin-bottom: 10px; 
+            border: 1px solid #ffeeba; 
+        }
+        .toggle-label { 
+            font-weight: bold; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            gap: 5px; 
+            color: #856404; 
+        }
+        #docUpload { 
+            margin-top: 10px; 
+            width: 100%; 
+            display: none; /* Começa escondido */
+        }
 
         /* Estilo para a Tabela de Ranking */
-.ranking-container {
-    margin-top: 20px;
-    background: #fff;
-    padding: 15px;
-    border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    display: none; /* Começa escondido */
-}
-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
-th { background-color: #f8f9fa; }
-.btn-ranking { background: #6f42c1; color: white; width: 100%; margin-top: 10px; padding: 10px; border: none; border-radius: 5px; cursor: pointer; }
+        .ranking-container {
+            margin-top: 20px;
+            background: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: none; /* Começa escondido */
+        }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f8f9fa; }
     </style>
 </head>
 <body>
     <div class="chat-container">
         <h2>🤖 Assistente IA</h2>
-            <!-- NOVO: Campo de Nickname -->
-    <div style="margin-bottom: 10px;">
-        <input type="text" id="nickname" placeholder="Seu Nickname (Apelido)..." style="width: 95%;">
-    </div>
+        
+        <!-- Campo de Nickname -->
+        <div style="margin-bottom: 10px;">
+            <input type="text" id="nickname" placeholder="Seu Nickname (Apelido)..." style="width: 95%;">
+        </div>
+
+        <!-- NOVO: Container de Upload de Documento (RAG) -->
+        <div class="doc-container">
+            <label class="toggle-label">
+                <input type="checkbox" id="modoDocumento" onchange="alternarModoDocumento()">
+                📄 Conversar com Documento (PDF)
+            </label>
+            <input type="file" id="docUpload" accept=".pdf, .txt">
+        </div>
+
+        <!-- Histórico do Chat -->
         <div class="historico" id="historico"></div>
-        <div>
+        
+        <!-- Input de Pergunta e Botão Enviar -->
+        <div class="input-group">
             <input type="text" id="pergunta" placeholder="Digite sua pergunta...">
             <button class="btn-enviar" onclick="enviarMensagem()">Enviar</button>
         </div>
+        
+        <!-- Botões Extras -->
         <button class="btn-limpar" onclick="limparChat()">🗑️ Limpar Conversa</button>
-
         <button class="btn-ranking" onclick="mostrarRanking()">🏆 Ver Ranking (Hall da Fama)</button>
 
-<div id="ranking-box" class="ranking-container">
-    <h3>🏆 Top 10 Guardiões</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>Pos.</th>
-                <th>Nickname</th>
-                <th>XP</th>
-            </tr>
-        </thead>
-        <tbody id="tabela-ranking">
-            <!-- Os dados entrarão aqui via JS -->
-        </tbody>
-    </table>
-    <button onclick="document.getElementById('ranking-box').style.display='none'" style="margin-top:10px; cursor:pointer;">Fechar</button>
-</div>
+        <!-- Tabela de Ranking (Oculta por padrão) -->
+        <div id="ranking-box" class="ranking-container">
+            <h3>🏆 Top 10 Guardiões</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Pos.</th>
+                        <th>Nickname</th>
+                        <th>XP</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-ranking">
+                    <!-- Os dados entrarão aqui via JS -->
+                </tbody>
+            </table>
+            <button onclick="document.getElementById('ranking-box').style.display='none'" style="margin-top:10px; cursor:pointer;">Fechar</button>
+        </div>
     </div>
 
     <script>
-    // URL do seu Back-end no Render (Certifique-se de que está correta)
+    // URL do seu Back-end. Se estiver testando localmente, mude para http://localhost:3000/api/chat
     const URL_BASE = "https://api-agente-ia-6.onrender.com/api/chat";
 
+    // ATENÇÃO: Como seu backend agora exige um token (autenticarToken), 
+    // futuramente você precisará substituir essa variável pelo token real gerado no login.
+    const TOKEN_USUARIO = "SEU_TOKEN_AQUI"; 
+
     /**
-     * FUNÇÃO: ENVIAR MENSAGEM
-     * Captura Nickname e Pergunta, envia para o servidor e exibe a resposta da IA.
+     * Mostra ou esconde o input de arquivo dependendo se a caixa está marcada
+     */
+    function alternarModoDocumento() {
+        const checkbox = document.getElementById("modoDocumento");
+        const inputFile = document.getElementById("docUpload");
+        inputFile.style.display = checkbox.checked ? "block" : "none";
+    }
+
+    /**
+     * FUNÇÃO: ENVIAR MENSAGEM (Trata chat normal e upload de PDF)
      */
     async function enviarMensagem() {
         const input = document.getElementById("pergunta");
         const nickInput = document.getElementById("nickname");
         const historico = document.getElementById("historico");
+        const modoDocumento = document.getElementById("modoDocumento").checked;
+        const fileInput = document.getElementById("docUpload");
         
         const texto = input.value;
         const nickname = nickInput.value.trim();
 
-        // Validações básicas
+        // Validações
         if (!nickname) {
             alert("⚠️ Digite um Nickname para ganhar pontos!");
             nickInput.focus();
@@ -95,32 +171,56 @@ th { background-color: #f8f9fa; }
         }
         if (!texto) return;
 
+        if (modoDocumento && fileInput.files.length === 0) {
+            alert("⚠️ Selecione um arquivo PDF primeiro ou desative o modo 'Conversar com Documento'.");
+            return;
+        }
+
         // Exibe a mensagem do usuário no chat
         historico.innerHTML += `
             <div class="mensagem user">
-                <strong>${nickname}:</strong> ${texto}
+                <strong>${nickname}:</strong> ${texto} ${modoDocumento ? '📄 (Com anexo)' : ''}
             </div>`;
         
         input.value = ""; // Limpa campo de texto
         
-        // Exibe o estado de "Pensando..."
+        // Loading
         historico.innerHTML += `<div class="mensagem bot" id="loading">🤖 O Guardião está processando...</div>`;
         historico.scrollTop = historico.scrollHeight;
 
         try {
-            // Envia Nickname e Pergunta no corpo do JSON
-            const resposta = await fetch(URL_BASE, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                    pergunta: texto, 
-                    nickname: nickname 
-                })
-            });
+            let resposta;
+            
+            // SE MODO DOCUMENTO ESTIVER ATIVO -> Envia FormData (Multpart)
+            if (modoDocumento) {
+                const formData = new FormData();
+                formData.append("pergunta", texto);
+                formData.append("nickname", nickname);
+                formData.append("documento", fileInput.files[0]); // Anexa o PDF
+
+                resposta = await fetch(`${URL_BASE}/documento`, {
+                    method: "POST",
+                    headers: {
+                        // "Authorization": `Bearer ${TOKEN_USUARIO}` // Descomente quando o login do front estiver pronto
+                    },
+                    body: formData // Navegador define o Content-Type automaticamente para multipart/form-data
+                });
+            } 
+            // SE FOR CHAT NORMAL -> Envia JSON
+            else {
+                resposta = await fetch(URL_BASE, {
+                    method: "POST",
+                    headers: { 
+                        "Content-Type": "application/json",
+                        // "Authorization": `Bearer ${TOKEN_USUARIO}` // Descomente quando o login do front estiver pronto
+                    },
+                    body: JSON.stringify({ pergunta: texto, nickname: nickname })
+                });
+            }
 
             const dados = await resposta.json();
             
-            // Remove o indicador de carregamento
+            // Remove o loading
             const loadingElement = document.getElementById("loading");
             if(loadingElement) loadingElement.remove();
 
@@ -129,7 +229,7 @@ th { background-color: #f8f9fa; }
                 const respostaFormatada = marked.parse(dados.resposta);
                 historico.innerHTML += `<div class="mensagem bot">${respostaFormatada}</div>`;
             } else {
-                throw new Error("Resposta inválida");
+                throw new Error(dados.erro || "Resposta inválida");
             }
             
             historico.scrollTop = historico.scrollHeight;
@@ -138,30 +238,25 @@ th { background-color: #f8f9fa; }
             console.error("Erro:", erro);
             const loadingElement = document.getElementById("loading");
             if(loadingElement) {
-                loadingElement.innerHTML = "Erro ao conectar com o servidor ❌";
-            } else {
-                historico.innerHTML += `<div class="mensagem bot">Erro de conexão ❌</div>`;
+                loadingElement.innerHTML = `Erro ao conectar com o servidor ❌ (${erro.message})`;
             }
         }
     }
 
     /**
      * FUNÇÃO: MOSTRAR RANKING
-     * Busca os Top 10 jogadores no banco e preenche a tabela.
      */
     async function mostrarRanking() {
         const box = document.getElementById("ranking-box");
         const tabela = document.getElementById("tabela-ranking");
         
         try {
-            // Requisição para a nova rota de ranking
             const resposta = await fetch(`${URL_BASE}/ranking`);
             const jogadores = await resposta.json();
             
-            tabela.innerHTML = ""; // Limpa a tabela
+            tabela.innerHTML = ""; 
             
             jogadores.forEach((jogador, index) => {
-                // Lógica das medalhas para os 3 primeiros
                 let posicao;
                 if(index === 0) posicao = "🥇";
                 else if(index === 1) posicao = "🥈";
@@ -177,7 +272,7 @@ th { background-color: #f8f9fa; }
                 `;
             });
             
-            box.style.display = "block"; // Mostra o container do ranking
+            box.style.display = "block"; 
         } catch (erro) {
             console.error("Erro ao carregar ranking:", erro);
             alert("Não foi possível carregar o Hall da Fama.");
@@ -186,16 +281,12 @@ th { background-color: #f8f9fa; }
 
     /**
      * FUNÇÃO: LIMPAR CHAT
-     * Apaga as mensagens do banco de dados e limpa a tela.
      */
     async function limparChat() {
         if (!confirm("Deseja apagar todo o histórico de mensagens?")) return;
 
         try {
-            const resposta = await fetch(`${URL_BASE}/limpar`, {
-                method: "DELETE" 
-            });
-            
+            const resposta = await fetch(`${URL_BASE}/limpar`, { method: "DELETE" });
             if (resposta.ok) {
                 document.getElementById("historico").innerHTML = ""; 
                 alert("Chat reiniciado!");
@@ -209,6 +300,6 @@ th { background-color: #f8f9fa; }
     document.getElementById("pergunta").addEventListener("keypress", function(e) {
         if (e.key === "Enter") enviarMensagem();
     });
-</script>
+    </script>
 </body>
 </html>

@@ -1,10 +1,10 @@
 const Mensagem = require('../models/Mensagem');
-const Jogador = require('../models/Jogador'); // Importando o modelo de Jogador
+const Jogador = require('../models/Jogador');
+const pdfParse = require('pdf-parse'); 
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // --- FASE 1: FUNÇÕES LOCAIS (AÇÕES) ---
 
-// Função de Clima (Sprint anterior)
 async function buscarClimaTempoReal(cidade) {
     const apiKey = process.env.WEATHER_API_KEY; 
     const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(cidade)}&appid=${apiKey}&units=metric&lang=pt_br`;
@@ -16,18 +16,14 @@ async function buscarClimaTempoReal(cidade) {
     } catch (e) { return { erro: "Serviço offline." }; }
 }
 
-// NOVO: Função para Adicionar XP no MongoDB
 async function adicionarXP(nickname, quantidade) {
     try {
         console.log(`🎮 Atualizando XP de ${nickname}: ${quantidade}`);
-        
-        // Procura o jogador pelo nome. Se não existir, o 'upsert' cria um novo.
         const jogadorAtualizado = await Jogador.findOneAndUpdate(
             { nome: nickname },
-            { $inc: { xp: quantidade } }, // Incrementa o XP (ou retira se quantidade for negativa)
+            { $inc: { xp: quantidade } },
             { upsert: true, new: true } 
         );
-
         return { sucesso: true, mensagem: `XP de ${nickname} agora é ${jogadorAtualizado.xp}` };
     } catch (erro) {
         console.error("Erro ao atualizar XP:", erro);
@@ -76,9 +72,10 @@ REGRAS DO JOGO:
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+// Função de Chat normal (O Guardião com as Charadas)
 exports.enviarChat = async (req, res) => {
     try {
-        const { pergunta, nickname } = req.body; // Recebendo Nickname do front
+        const { pergunta, nickname } = req.body;
         if (!pergunta || !nickname) return res.status(400).json({ erro: "Nickname e Pergunta são obrigatórios." });
 
         await Mensagem.create({ role: "user", parts: [{ text: `[Jogador: ${nickname}] ${pergunta}` }] });
@@ -87,29 +84,25 @@ exports.enviarChat = async (req, res) => {
 
         const model = genAI.getGenerativeModel({ 
             model: "gemini-1.5-flash",
-            systemInstruction: instrucaoDoSistema, // Aplicando a Fase 3
-            tools: [{ functionDeclarations: [declaracaoClima, declaracaoXP] }] // Aplicando a Fase 2
+            systemInstruction: instrucaoDoSistema,
+            tools: [{ functionDeclarations: [declaracaoClima, declaracaoXP] }]
         });
 
         const chat = model.startChat({ history: historico });
         let result = await chat.sendMessage(pergunta);
         
-        // LOOP DE EXECUÇÃO DE FUNÇÕES (AGENTE)
         const calls = result.response.functionCalls();
         
         if (calls && calls.length > 0) {
             const call = calls[0];
             let resultadoDaAcao;
 
-            // Identifica qual função a IA quer chamar
             if (call.name === "buscarClimaTempoReal") {
                 resultadoDaAcao = await buscarClimaTempoReal(call.args.cidade);
             } else if (call.name === "adicionarXP") {
-                // Garante que a IA use o nickname correto enviado pelo front
                 resultadoDaAcao = await adicionarXP(nickname, call.args.quantidade);
             }
 
-            // Envia o resultado da função de volta para a IA finalizar o texto
             const resultFinal = await chat.sendMessage([{
                 functionResponse: {
                     name: call.name,
@@ -131,18 +124,70 @@ exports.enviarChat = async (req, res) => {
     }
 };
 
-// Limpar chat (mantém o mesmo)
+// NOVA FUNÇÃO: Analisar Documento PDF com RAG Estrito
+exports.analisarDocumento = async (req, res) => {
+    try {
+        const { pergunta, nickname } = req.body;
+
+        // Validações
+        if (!pergunta || !nickname) {
+            return res.status(400).json({ erro: "Nickname e Pergunta são obrigatórios." });
+        }
+        if (!req.file || req.file.mimetype !== 'application/pdf') {
+            return res.status(400).json({ erro: "Um arquivo PDF válido é obrigatório." });
+        }
+
+        // 1. Extraindo texto do PDF
+        const pdfData = await pdfParse(req.file.buffer);
+        const textoExtraidoDoPDF = pdfData.text; // Captura o texto do PDF
+
+        console.log(`📜 PDF processado para ${nickname}. Páginas: ${pdfData.numpages}`);
+
+        // Salva a pergunta e o aviso de envio de arquivo no histórico do MongoDB
+        await Mensagem.create({ role: "user", parts: [{ text: `[Jogador: ${nickname} enviou um PDF] ${pergunta}` }] });
+
+        // 2. O SUPER PROMPT (RAG) - Evitando Alucinações
+        const promptRAG = `
+Você é um analista de dados corporativo extremamente preciso.
+Abaixo está um documento de referência. Responda à pergunta do usuário baseando-se APENAS no texto fornecido.
+Se a resposta não estiver no texto, diga exatamente: "Desculpe, não encontrei essa informação no documento." NÃO INVENTE DADOS.
+
+DOCUMENTO:
+"""
+${textoExtraidoDoPDF}
+"""
+
+PERGUNTA DO USUÁRIO: ${pergunta}
+`;
+
+        // 3. Enviando para o Gemini
+        // Perceba que aqui NÃO estamos usando o "instrucaoDoSistema" do Guardião.
+        // O escopo desta rota é puramente analisar o PDF focado em precisão.
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const result = await model.generateContent(promptRAG);
+        const respostaFinalTexto = result.response.text();
+
+        // 4. Salvando a resposta do Bot e retornando
+        await Mensagem.create({ role: "model", parts: [{ text: respostaFinalTexto }] });
+        return res.status(200).json({ sucesso: true, resposta: respostaFinalTexto });
+
+    } catch (erro) {
+        console.error("Erro ao processar documento:", erro);
+        return res.status(500).json({ erro: "Falha ao ler o PDF ou se comunicar com a IA." });
+    }
+};
+
 exports.limparChat = async (req, res) => {
     await Mensagem.deleteMany({});
     res.status(200).json({ sucesso: true });
 };
-// Busca os 10 jogadores com mais XP
+
 exports.obterRanking = async (req, res) => {
     try {
         const ranking = await Jogador.find()
-            .sort({ xp: -1 }) // Ordena do maior XP para o menor
-            .limit(10)        // Pega apenas os 10 primeiros
-            .select('nome xp -_id'); // Retorna só nome e xp
+            .sort({ xp: -1 }) 
+            .limit(10)        
+            .select('nome xp -_id'); 
         
         return res.status(200).json(ranking);
     } catch (erro) {
