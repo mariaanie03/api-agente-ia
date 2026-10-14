@@ -6,6 +6,7 @@
     
     <!-- Biblioteca para traduzir Markdown (negrito, códigos, etc) -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.socket.io/4.8.4/socket.io.min.js"></script>
 
     <style>
         body { 
@@ -135,7 +136,7 @@
 
     <script>
     // URL do seu Back-end. Se estiver testando localmente, mude para http://localhost:3000/api/chat
-    const URL_BASE = "https://api-agente-ia-6.onrender.com/api/chat";
+    const URL_BA    SE = "https://api-agente-ia-6.onrender.com/api/chat";
 
     // ATENÇÃO: Como seu backend agora exige um token (autenticarToken), 
     // futuramente você precisará substituir essa variável pelo token real gerado no login.
@@ -153,95 +154,51 @@
     /**
      * FUNÇÃO: ENVIAR MENSAGEM (Trata chat normal e upload de PDF)
      */
-    async function enviarMensagem() {
-        const input = document.getElementById("pergunta");
-        const nickInput = document.getElementById("nickname");
-        const historico = document.getElementById("historico");
-        const modoDocumento = document.getElementById("modoDocumento").checked;
-        const fileInput = document.getElementById("docUpload");
-        
-        const texto = input.value;
-        const nickname = nickInput.value.trim();
+function enviarMensagem() {
+    const input = document.getElementById("pergunta");
+    const nickInput = document.getElementById("nickname");
+    
+    const texto = input.value.trim();
+    const nickname = nickInput.value.trim();
 
-        // Validações
-        if (!nickname) {
-            alert("⚠️ Digite um Nickname para ganhar pontos!");
-            nickInput.focus();
-            return;
-        }
-        if (!texto) return;
-
-        if (modoDocumento && fileInput.files.length === 0) {
-            alert("⚠️ Selecione um arquivo PDF primeiro ou desative o modo 'Conversar com Documento'.");
-            return;
-        }
-
-        // Exibe a mensagem do usuário no chat
-        historico.innerHTML += `
-            <div class="mensagem user">
-                <strong>${nickname}:</strong> ${texto} ${modoDocumento ? '📄 (Com anexo)' : ''}
-            </div>`;
-        
-        input.value = ""; // Limpa campo de texto
-        
-        // Loading
-        historico.innerHTML += `<div class="mensagem bot" id="loading">🤖 O Guardião está processando...</div>`;
-        historico.scrollTop = historico.scrollHeight;
-
-        try {
-            let resposta;
-            
-            // SE MODO DOCUMENTO ESTIVER ATIVO -> Envia FormData (Multpart)
-            if (modoDocumento) {
-                const formData = new FormData();
-                formData.append("pergunta", texto);
-                formData.append("nickname", nickname);
-                formData.append("documento", fileInput.files[0]); // Anexa o PDF
-
-                resposta = await fetch(`${URL_BASE}/documento`, {
-                    method: "POST",
-                    headers: {
-                        // "Authorization": `Bearer ${TOKEN_USUARIO}` // Descomente quando o login do front estiver pronto
-                    },
-                    body: formData // Navegador define o Content-Type automaticamente para multipart/form-data
-                });
-            } 
-            // SE FOR CHAT NORMAL -> Envia JSON
-            else {
-                resposta = await fetch(URL_BASE, {
-                    method: "POST",
-                    headers: { 
-                        "Content-Type": "application/json",
-                        // "Authorization": `Bearer ${TOKEN_USUARIO}` // Descomente quando o login do front estiver pronto
-                    },
-                    body: JSON.stringify({ pergunta: texto, nickname: nickname })
-                });
-            }
-
-            const dados = await resposta.json();
-            
-            // Remove o loading
-            const loadingElement = document.getElementById("loading");
-            if(loadingElement) loadingElement.remove();
-
-            if (dados.resposta) {
-                // Transforma Markdown em HTML e exibe
-                const respostaFormatada = marked.parse(dados.resposta);
-                historico.innerHTML += `<div class="mensagem bot">${respostaFormatada}</div>`;
-            } else {
-                throw new Error(dados.erro || "Resposta inválida");
-            }
-            
-            historico.scrollTop = historico.scrollHeight;
-
-        } catch (erro) {
-            console.error("Erro:", erro);
-            const loadingElement = document.getElementById("loading");
-            if(loadingElement) {
-                loadingElement.innerHTML = `Erro ao conectar com o servidor ❌ (${erro.message})`;
-            }
-        }
+    // Validações básicas
+    if (!nickname) {
+        alert("⚠️ Digite um Nickname!");
+        return;
     }
+    if (!texto) return;
+
+    // Emite o evento para o servidor
+    socket.emit('novaMensagem', {
+        nickname: nickname,
+        texto: texto
+    });
+
+    // Limpa o input
+    input.value = "";
+}
+
+function enviarMensagemViaSocket() {
+        const input = document.getElementById("pergunta");
+    const nick = document.getElementById("nickname").value;
+        if (input.value.trim() !== "") {
+        // Emite para o servidor
+        socket.emit('novaMensagem', { 
+               nickname: nick, 
+            texto: input.value 
+        });
+        input.value = "";
+    }
+}
+
+socket.on('mensagemRecebida', (dados) => {
+    const historico = document.getElementById("historico");
+        historico.innerHTML += `
+        <div class="mensagem ${dados.ehBot ? 'bot' : 'user'}">
+            <strong>${dados.nickname}:</strong> ${dados.texto}
+                  </div>`;
+    historico.scrollTop = historico.scrollHeight;
+});
 
     /**
      * FUNÇÃO: MOSTRAR RANKING
@@ -300,6 +257,52 @@
     document.getElementById("pergunta").addEventListener("keypress", function(e) {
         if (e.key === "Enter") enviarMensagem();
     });
+
+const meuToken = localStorage.getItem('token_saas');
+
+const socket = io("https://api-agente-ia-6.onrender.com", {
+    auth: {
+        token: meuToken
+    }
+});
+
+// Gerenciamento de erro de conexão (caso o token seja recusado)
+socket.on("connect_error", (err) => {
+    console.error("Erro de conexão:", err.message);
+    if (err.message.includes("Autenticação")) {
+        alert("Sua sessão expirou ou você não está logado!");
+        // window.location.href = "/login.html"; // Opcional: redirecionar
+    }
+});
+
+
+
+// Verifica se conectou
+socket.on('connect', () => {
+    console.log("Conectado ao servidor! ID:", socket.id);
+});
+
+// 2. Escutando mensagens que chegam do servidor (mensagemRecebida)
+socket.on('mensagemRecebida', (dados) => {
+    const historico = document.getElementById("historico");
+    
+    // Formata a mensagem na tela
+    // Adicionamos uma classe extra se for o BOT para o CSS funcionar
+    const classe = dados.nickname === "Guardião" ? "bot" : "user";
+    
+    historico.innerHTML += `
+        <div class="mensagem ${classe}">
+            <strong>${dados.nickname}:</strong> ${dados.texto}
+        </div>`;
+    
+    // Rola o scroll para baixo automaticamente
+    historico.scrollTop = historico.scrollHeight;
+});
     </script>
+
+
+    
+
+
 </body>
 </html>

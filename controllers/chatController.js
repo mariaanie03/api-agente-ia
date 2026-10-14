@@ -194,4 +194,24 @@ exports.obterRanking = async (req, res) => {
         console.error("Erro ao buscar ranking:", erro);
         return res.status(500).json({ erro: "Falha ao obter ranking." });
     }
+};      
+
+// Adicione esta função no chatController.js para reutilizar a lógica da IA
+exports.processarMensagemIA = async (pergunta, nickname) => {
+    try {
+        const { GoogleGenerativeAI } = require("@google/generative-ai");
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        
+        // Mantemos a mesma configuração de modelo e sistema que você já tem
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-1.5-flash",
+            systemInstruction: `Você é o Guardião do Cofre do Conhecimento...` // Use a string da sua instrução aqui
+        });
+
+        const result = await model.generateContent(pergunta);
+        return result.response.text();
+    } catch (erro) {
+        console.error("Erro na IA via Socket:", erro);
+        return "Erro ao processar a resposta do Guardião.";
+    }
 };
